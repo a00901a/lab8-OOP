@@ -1,0 +1,335 @@
+using System;
+using System.Collections.Generic; // Для використання Dictionary
+using System.IO;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Documents;
+using System.Windows.Media;
+using System.Windows.Input;
+using Microsoft.Win32;
+
+namespace MultiWindowTextEditor
+{
+    /// <summary>
+    /// Клас TextEditorApp – це точка входу в додаток.
+    /// Метод Main створює екземпляр програми і запускає її.
+    /// </summary>
+    public class TextEditorApp : Application
+    {
+        [STAThread]
+        public static void Main()
+        {
+            TextEditorApp app = new TextEditorApp();
+            app.Run();
+        }
+
+        protected override void OnStartup(StartupEventArgs e)
+        {
+            base.OnStartup(e);
+            MainWindow mainWindow = new MainWindow();
+            mainWindow.Show();
+        }
+    }
+
+    /// <summary>
+    /// Клас MainWindow представляє головне вікно редактора з багатовіконною підтримкою,
+    /// додаванням зображень, вирівнюванням тексту та перемиканням мови.
+    /// </summary>
+    public class MainWindow : Window
+    {
+        private RichTextBox richTextBox;
+
+        // Поля для елементів меню, для яких потрібно змінювати мову
+        private MenuItem fileMenu;
+        private MenuItem insertMenu;
+        private MenuItem alignMenu;
+        private MenuItem languageMenu;
+        private MenuItem newDocItem;
+        private MenuItem newWindowItem;
+        private MenuItem openItem;
+        private MenuItem saveItem;
+        private MenuItem insertImageItem;
+        private MenuItem alignLeftItem;
+        private MenuItem alignCenterItem;
+        private MenuItem alignRightItem;
+        private MenuItem langUaItem;
+        private MenuItem langEnItem;
+
+        // Словник для зберігання мовних рядків
+        private Dictionary<string, string> languageDictionary;
+
+        /// <summary>
+        /// Конструктор MainWindow. Налаштовує інтерфейс і встановлює мову за замовчуванням.
+        /// </summary>
+        public MainWindow()
+        {
+            // Встановлюємо мову за замовчуванням - українська
+            SetLanguage("uk");
+
+            // Встановлення заголовку вікна із використанням рядка з словника
+            Title = languageDictionary["WindowTitle"];
+            Width = 800;
+            Height = 600;
+
+            // Створення основної сітки для розташування елементів інтерфейсу
+            Grid mainGrid = new Grid();
+            this.Content = mainGrid;
+
+            // Додавання двох рядків: перший для меню, другий для RichTextBox
+            mainGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            mainGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+
+            // Створення головного меню
+            Menu menu = new Menu();
+            Grid.SetRow(menu, 0);
+            mainGrid.Children.Add(menu);
+
+            // ============================
+            // Підменю "Файл"
+            // ============================
+            fileMenu = new MenuItem { Header = languageDictionary["File"] };
+            menu.Items.Add(fileMenu);
+
+            // Пункт "Новий документ"
+            newDocItem = new MenuItem { Header = languageDictionary["NewDocument"] };
+            newDocItem.Click += NewDocItem_Click;
+            fileMenu.Items.Add(newDocItem);
+
+            // Пункт "Нове вікно"
+            newWindowItem = new MenuItem { Header = languageDictionary["NewWindow"] };
+            newWindowItem.Click += NewWindowItem_Click;
+            fileMenu.Items.Add(newWindowItem);
+
+            // Пункт "Відкрити"
+            openItem = new MenuItem { Header = languageDictionary["Open"] };
+            openItem.Click += OpenItem_Click;
+            fileMenu.Items.Add(openItem);
+
+            // Пункт "Зберегти"
+            saveItem = new MenuItem { Header = languageDictionary["Save"] };
+            saveItem.Click += SaveItem_Click;
+            fileMenu.Items.Add(saveItem);
+
+            // ============================
+            // Підменю "Вставка"
+            // ============================
+            insertMenu = new MenuItem { Header = languageDictionary["Insert"] };
+            menu.Items.Add(insertMenu);
+
+            // Пункт "Зображення"
+            insertImageItem = new MenuItem { Header = languageDictionary["Image"] };
+            insertImageItem.Click += InsertImageItem_Click;
+            insertMenu.Items.Add(insertImageItem);
+
+            // ============================
+            // Підменю "Вирівнювання"
+            // ============================
+            alignMenu = new MenuItem { Header = languageDictionary["Alignment"] };
+            menu.Items.Add(alignMenu);
+
+            // Пункт "Ліворуч"
+            alignLeftItem = new MenuItem { Header = languageDictionary["AlignLeft"] };
+            alignLeftItem.Click += (s, e) =>
+                richTextBox.Selection.ApplyPropertyValue(Paragraph.TextAlignmentProperty, TextAlignment.Left);
+            alignMenu.Items.Add(alignLeftItem);
+
+            // Пункт "По центру"
+            alignCenterItem = new MenuItem { Header = languageDictionary["AlignCenter"] };
+            alignCenterItem.Click += (s, e) =>
+                richTextBox.Selection.ApplyPropertyValue(Paragraph.TextAlignmentProperty, TextAlignment.Center);
+            alignMenu.Items.Add(alignCenterItem);
+
+            // Пункт "Праворуч"
+            alignRightItem = new MenuItem { Header = languageDictionary["AlignRight"] };
+            alignRightItem.Click += (s, e) =>
+                richTextBox.Selection.ApplyPropertyValue(Paragraph.TextAlignmentProperty, TextAlignment.Right);
+            alignMenu.Items.Add(alignRightItem);
+
+            // ============================
+            // Підменю "Мова"
+            // ============================
+            languageMenu = new MenuItem { Header = languageDictionary["Language"] };
+            menu.Items.Add(languageMenu);
+
+            // Пункт "Українська" для перемикання на українську мову
+            langUaItem = new MenuItem { Header = languageDictionary["Ukrainian"] };
+            langUaItem.Click += (s, e) => ChangeLanguage("uk");
+            languageMenu.Items.Add(langUaItem);
+
+            // Пункт "English" для перемикання на англійську мову
+            langEnItem = new MenuItem { Header = languageDictionary["English"] };
+            langEnItem.Click += (s, e) => ChangeLanguage("en");
+            languageMenu.Items.Add(langEnItem);
+
+            // ============================
+            // Створення RichTextBox для редагування тексту
+            // ============================
+            richTextBox = new RichTextBox();
+            Grid.SetRow(richTextBox, 1);
+            mainGrid.Children.Add(richTextBox);
+        }
+
+        /// <summary>
+        /// Метод встановлення словника мовних рядків в залежності від вибраної мови.
+        /// </summary>
+        /// <param name="lang">Код мови ("uk" для української, "en" для англійської)</param>
+        private void SetLanguage(string lang)
+        {
+            if (lang == "uk")
+            {
+                languageDictionary = new Dictionary<string, string>()
+                {
+                    {"WindowTitle", "Багатовіконний текстовий редактор"},
+                    {"File", "Файл"},
+                    {"NewDocument", "Новий документ"},
+                    {"NewWindow", "Нове вікно"},
+                    {"Open", "Відкрити"},
+                    {"Save", "Зберегти"},
+                    {"Insert", "Вставка"},
+                    {"Image", "Зображення"},
+                    {"Alignment", "Вирівнювання"},
+                    {"AlignLeft", "Ліворуч"},
+                    {"AlignCenter", "По центру"},
+                    {"AlignRight", "Праворуч"},
+                    {"Language", "Мова"},
+                    {"Ukrainian", "Українська"},
+                    {"English", "English"}
+                };
+            }
+            else if (lang == "en")
+            {
+                languageDictionary = new Dictionary<string, string>()
+                {
+                    {"WindowTitle", "Multi-Window Text Editor"},
+                    {"File", "File"},
+                    {"NewDocument", "New Document"},
+                    {"NewWindow", "New Window"},
+                    {"Open", "Open"},
+                    {"Save", "Save"},
+                    {"Insert", "Insert"},
+                    {"Image", "Image"},
+                    {"Alignment", "Alignment"},
+                    {"AlignLeft", "Left"},
+                    {"AlignCenter", "Center"},
+                    {"AlignRight", "Right"},
+                    {"Language", "Language"},
+                    {"Ukrainian", "Українська"},
+                    {"English", "English"}
+                };
+            }
+        }
+
+        /// <summary>
+        /// Метод оновлення текстів усіх елементів інтерфейсу згідно з поточним словником.
+        /// </summary>
+        private void UpdateUITexts()
+        {
+            // Оновлення заголовку вікна
+            this.Title = languageDictionary["WindowTitle"];
+            // Оновлення заголовків меню
+            fileMenu.Header = languageDictionary["File"];
+            newDocItem.Header = languageDictionary["NewDocument"];
+            newWindowItem.Header = languageDictionary["NewWindow"];
+            openItem.Header = languageDictionary["Open"];
+            saveItem.Header = languageDictionary["Save"];
+
+            insertMenu.Header = languageDictionary["Insert"];
+            insertImageItem.Header = languageDictionary["Image"];
+
+            alignMenu.Header = languageDictionary["Alignment"];
+            alignLeftItem.Header = languageDictionary["AlignLeft"];
+            alignCenterItem.Header = languageDictionary["AlignCenter"];
+            alignRightItem.Header = languageDictionary["AlignRight"];
+
+            languageMenu.Header = languageDictionary["Language"];
+            langUaItem.Header = languageDictionary["Ukrainian"];
+            langEnItem.Header = languageDictionary["English"];
+        }
+
+        /// <summary>
+        /// Обробник події для меню "Новий документ". Очищає вміст RichTextBox.
+        /// </summary>
+        private void NewDocItem_Click(object sender, RoutedEventArgs e)
+        {
+            richTextBox.Document.Blocks.Clear();
+        }
+
+        /// <summary>
+        /// Обробник події для меню "Нове вікно". Створює та показує нове вікно редактора.
+        /// </summary>
+        private void NewWindowItem_Click(object sender, RoutedEventArgs e)
+        {
+            MainWindow newWindow = new MainWindow();
+            newWindow.Show();
+        }
+
+        /// <summary>
+        /// Обробник події для меню "Відкрити". Відкриває RTF-файл та завантажує його в RichTextBox.
+        /// </summary>
+        private void OpenItem_Click(object sender, RoutedEventArgs e)
+        {
+            OpenFileDialog dlg = new OpenFileDialog();
+            dlg.Filter = "RTF файли (*.rtf)|*.rtf|Усі файли (*.*)|*.*";
+            if (dlg.ShowDialog() == true)
+            {
+                using (FileStream fs = new FileStream(dlg.FileName, FileMode.Open))
+                {
+                    richTextBox.Document.Blocks.Clear();
+                    TextRange range = new TextRange(richTextBox.Document.ContentStart, richTextBox.Document.ContentEnd);
+                    range.Load(fs, DataFormats.Rtf);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Обробник події для меню "Зберегти". Зберігає вміст RichTextBox у RTF-файл.
+        /// </summary>
+        private void SaveItem_Click(object sender, RoutedEventArgs e)
+        {
+            SaveFileDialog dlg = new SaveFileDialog();
+            dlg.Filter = "RTF файли (*.rtf)|*.rtf|Усі файли (*.*)|*.*";
+            if (dlg.ShowDialog() == true)
+            {
+                using (FileStream fs = new FileStream(dlg.FileName, FileMode.Create))
+                {
+                    TextRange range = new TextRange(richTextBox.Document.ContentStart, richTextBox.Document.ContentEnd);
+                    range.Save(fs, DataFormats.Rtf);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Обробник події для меню "Вставити зображення". Вставляє обране зображення в RichTextBox.
+        /// </summary>
+        private void InsertImageItem_Click(object sender, RoutedEventArgs e)
+        {
+            OpenFileDialog dlg = new OpenFileDialog();
+            dlg.Filter = "Зображення (*.jpg;*.jpeg;*.png;*.bmp;*.gif)|*.jpg;*.jpeg;*.png;*.bmp;*.gif";
+            if (dlg.ShowDialog() == true)
+            {
+                System.Windows.Media.Imaging.BitmapImage bitmap = new System.Windows.Media.Imaging.BitmapImage(new Uri(dlg.FileName));
+                Image image = new Image
+                {
+                    Source = bitmap,
+                    Width = 200 // Встановлення ширини зображення, можна змінити за потреби
+                };
+
+                InlineUIContainer container = new InlineUIContainer(image, richTextBox.CaretPosition);
+                richTextBox.CaretPosition = container.ElementEnd;
+            }
+        }
+
+        /// <summary>
+        /// Метод для зміни мови інтерфейсу.
+        /// Викликається при виборі мови з меню "Мова". Оновлює словник рядків та інтерфейс.
+        /// </summary>
+        /// <param name="lang">Код мови ("uk" або "en")</param>
+        private void ChangeLanguage(string lang)
+        {
+            // Оновлення словника мовних рядків залежно від вибраної мови
+            SetLanguage(lang);
+            // Оновлення текстів всіх елементів інтерфейсу
+            UpdateUITexts();
+        }
+    }
+}
